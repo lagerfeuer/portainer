@@ -1,0 +1,58 @@
+services:
+  nginx-proxy:
+    container_name: nginx-proxy
+    image: nginxproxy/nginx-proxy
+    restart: always
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - ./certs:/etc/nginx/certs
+
+  portainer:
+    container_name: portainer
+    image: portainer/portainer-ce:2.26.1
+    command: -H unix:///var/run/docker.sock
+    restart: always
+    environment:
+      - VIRTUAL_HOST=${DOMAIN}
+      - VIRTUAL_PORT=9000
+    env_file:
+      - .env
+    ports:
+      - 8000:8000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+  pihole:
+    container_name: pihole
+    image: pihole/pihole:2024.07.0
+    # For DHCP it is recommended to remove these ports and instead add: network_mode: "host"
+    ports:
+      - 53:53/tcp
+      - 53:53/udp
+      - 67:67/udp # Only required if you are using Pi-hole as your DHCP server
+    environment:
+      - TZ=America/NewYork
+      - WEBPASSWORD=${PIHOLE_PASSWORD}
+      - VIRTUAL_HOST=pihole.${DOMAIN}
+      - VIRTUAL_PORT=80
+      - DNSMASQ_LISTENING=all
+      - FTLCONF_LOCAL_IPV4=192.168.1.200
+    env_file:
+      - .env
+    volumes:
+      - "./etc-pihole:/etc/pihole"
+      - "./etc-dnsmasq.d:/etc/dnsmasq.d"
+    #   https://github.com/pi-hole/docker-pi-hole#note-on-capabilities
+    cap_add:
+      - NET_ADMIN # Required if you are using Pi-hole as your DHCP server, else not needed
+    restart: unless-stopped
+
+volumes:
+  portainer_data:
+
+networks:
+  default:
+    name: portainer
